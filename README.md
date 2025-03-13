@@ -22,36 +22,69 @@ This repository documents my deployment of Pi-hole within a Kubernetes (MicroK8s
 
 ### 1. Update System and Install Tools
 
-I started by updating the system and installing necessary tools with the commands: sudo apt update && sudo apt upgrade -y, followed by sudo apt install docker.io -y. I added myself to the Docker group with sudo usermod -aG docker $USER && newgrp docker. Then, I installed MicroK8s using sudo snap install microk8s --classic and added myself to its group with sudo usermod -aG microk8s $USER && newgrp microk8s.
+I started by updating the system and installing necessary tools with the commands: 
+```yaml
+sudo apt update && sudo apt upgrade -y
+```
+
+followed by 
+```yaml
+sudo apt install docker.io -y
+```
+
+I added myself to the Docker group with 
+
+```yaml
+sudo usermod -aG docker $USER && newgrp docker
+```
+Then, I installed MicroK8s using 
+
+```yaml
+sudo snap install microk8s --classic
+```
+and added myself to its group with 
+
+```yaml
+sudo usermod -aG microk8s $USER && newgrp microk8s
+```
 
 ### 2. Configure MicroK8s
 
-I enabled DNS and storage in MicroK8s with microk8s enable dns hostpath-storage, then verified the node status with microk8s kubectl get nodes, which showed "pi5-node Ready <none> <age> v1.32.2".
+I enabled DNS and storage in MicroK8s with ```microk8s enable dns hostpath-storage```, then verified the node status with microk8s ```kubectl get nodes```, which showed "pi5-node Ready <none> <age> v1.32.2".
 
 ### 3. Deploy Pi-hole in Kubernetes
 
-I stopped the native Pi-hole service with sudo systemctl stop pihole-FTL, created persistent directories with mkdir -p /home/user/pihole/etc-pihole /home/user/pihole/etc-dnsmasq.d, and set permissions with chmod -R 755 /home/user/pihole. Then, I applied the Kubernetes deployment with microk8s kubectl apply -f pihole-deployment.yaml.
+I stopped the native Pi-hole service with 
+
+```yaml
+sudo systemctl stop pihole-FTL
+```
+created persistent directories with ```mkdir -p /home/user/pihole/etc-pihole /home/user/pihole/etc-dnsmasq.d```, and set permissions with ```chmod -R 755 /home/user/pihole```. Then, I applied the Kubernetes deployment with ```microk8s kubectl apply -f pihole-deployment.yaml```.
 
 ![Pi-hole Dashboard](images/kubepiholedash.png)  
 *Pi-hole admin interface showing statistics and status*
 
 ### 4. Post-Deployment
 
-I secured the admin password by running microk8s kubectl exec -it pihole-<pod-name> -- pihole -a -p family400@. I enabled DHCP in the Pi-hole dashboard with a range of 10.0.0.100-199 and disabled the router’s DHCP.
+I secured the admin password by running ```microk8s kubectl exec -it pihole-<pod-name> -- pihole -a -p family400@```. I enabled DHCP in the Pi-hole dashboard with a range of 10.0.0.100-199 and disabled the router’s DHCP.
 
 ## Implementation Process
 
 ### 1. Network Configuration
 
-I configured a static IP using Netplan by editing /etc/netplan/01-netcfg.yaml with the following content: network: version: 2, renderer: networkd, ethernets: eth0: match: macaddress: "00:11:22:33:44:55", dhcp4: no, addresses: - 10.0.0.100/24, nameservers: addresses: [8.8.8.8, 8.8.4.4], routes: - to: default, via: 10.0.0.1. I cleaned up conflicts by running sudo rm /etc/netplan/50-cloud-init.yaml, sudo chmod 600 /etc/netplan/01-netcfg.yaml, and sudo netplan apply.
+I configured a static IP using Netplan by editing ```/etc/netplan/01-netcfg.yaml``` with the following content: network: version: 2, renderer: networkd, ethernets: eth0: match: macaddress: "00:11:22:33:44:55", dhcp4: no, addresses: - 10.0.0.100/24, nameservers: addresses: [8.8.8.8, 8.8.4.4], routes: - to: default, via: 10.0.0.1. I cleaned up conflicts by running ```sudo rm /etc/netplan/50-cloud-init.yaml```, ```sudo chmod 600 /etc/netplan/01-netcfg.yaml```, and ```sudo netplan apply```.
 
 ### 2. Kubernetes Deployment
 
-I defined pihole-deployment.yaml with this configuration: apiVersion: apps/v1, kind: Deployment, metadata: name: pihole, namespace: default, spec: replicas: 1, selector: matchLabels: app: pihole, template: metadata: labels: app: pihole, spec: hostNetwork: true, containers: - name: pihole, image: pihole/pihole:latest, env: - name: ServerIP, value: "10.0.0.100", - name: TZ, value: "UTC", - name: WEBPASSWORD, value: "family400@", - name: DHCP_ROUTER, value: "10.0.0.1", volumeMounts: - name: etc-pihole, mountPath: /etc/pihole, - name: etc-dnsmasq, mountPath: /etc/dnsmasq.d, ports: - containerPort: 53, protocol: UDP, - containerPort: 53, protocol: TCP, - containerPort: 67, protocol: UDP, - containerPort: 80, protocol: TCP, securityContext: capabilities: add: ["NET_ADMIN"], volumes: - name: etc-pihole, hostPath: path: /home/user/pihole/etc-pihole, type: Directory, - name: etc-dnsmasq, hostPath: path: /home/user/pihole/etc-dnsmasq.d, type: Directory.
+I defined ```pihole-deployment.yaml``` with this configuration: apiVersion: apps/v1, kind: Deployment, metadata: name: pihole, namespace: default, spec: replicas: 1, selector: matchLabels: app: pihole, template: metadata: labels: app: pihole, spec: hostNetwork: true, containers: - name: pihole, image: pihole/pihole:latest, env: - name: ServerIP, value: "10.0.0.100", - name: TZ, value: "UTC", - name: WEBPASSWORD, value: "family400@", - name: DHCP_ROUTER, value: "10.0.0.1", volumeMounts: - name: etc-pihole, mountPath: /etc/pihole, - name: etc-dnsmasq, mountPath: /etc/dnsmasq.d, ports: - containerPort: 53, protocol: UDP, - containerPort: 53, protocol: TCP, - containerPort: 67, protocol: UDP, - containerPort: 80, protocol: TCP, securityContext: capabilities: add: ["NET_ADMIN"], volumes: - name: etc-pihole, hostPath: path: /home/user/pihole/etc-pihole, type: Directory, - name: etc-dnsmasq, hostPath: path: /home/user/pihole/etc-dnsmasq.d, type: Directory.
 
 ### 3. System Monitoring & Optimization
 
-I verified system health with sudo systemctl status docker, which showed "Active: active (running)", microk8s status, which confirmed "microk8s is running", and microk8s kubectl logs -l app=pihole, which logged FTL binding to ports 53, 80, and 443.
+I verified system health with 
+```yaml
+sudo systemctl status docker
+```
+, which showed "Active: active (running)", microk8s status, which confirmed "microk8s is running", and microk8s kubectl logs -l app=pihole, which logged FTL binding to ports 53, 80, and 443.
 
 ![System Health Statistics](images/getpods.png)  
 *Terminal output showing pod status and logs*
