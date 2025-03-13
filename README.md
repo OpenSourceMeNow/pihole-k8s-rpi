@@ -26,28 +26,28 @@ I started by updating the system and installing necessary tools with the command
 
 ### 2. Configure MicroK8s
 
-I enabled DNS and storage in MicroK8s with microk8s enable dns hostpath-storage, then verified the node status with microk8s kubectl get nodes, which showed "bryan-pi Ready <none> <age> v1.32.2".
+I enabled DNS and storage in MicroK8s with microk8s enable dns hostpath-storage, then verified the node status with microk8s kubectl get nodes, which showed "pi5-node Ready <none> <age> v1.32.2".
 
 ### 3. Deploy Pi-hole in Kubernetes
 
-I stopped the native Pi-hole service with sudo systemctl stop pihole-FTL, created persistent directories with mkdir -p /home/bryan/pihole/etc-pihole /home/bryan/pihole/etc-dnsmasq.d, and set permissions with chmod -R 755 /home/bryan/pihole. Then, I applied the Kubernetes deployment with microk8s kubectl apply -f pihole-deployment.yaml.
+I stopped the native Pi-hole service with sudo systemctl stop pihole-FTL, created persistent directories with mkdir -p /home/user/pihole/etc-pihole /home/user/pihole/etc-dnsmasq.d, and set permissions with chmod -R 755 /home/user/pihole. Then, I applied the Kubernetes deployment with microk8s kubectl apply -f pihole-deployment.yaml.
 
 ![Pi-hole Dashboard](images/kubepiholedash.png)  
 *Pi-hole admin interface showing statistics and status*
 
 ### 4. Post-Deployment
 
-I secured the admin password by running microk8s kubectl exec -it pihole-<pod-name> -- pihole -a -p Coffee10!. I enabled DHCP in the Pi-hole dashboard with a range of 192.168.1.100-199 and disabled the router’s DHCP.
+I secured the admin password by running microk8s kubectl exec -it pihole-<pod-name> -- pihole -a -p family400@. I enabled DHCP in the Pi-hole dashboard with a range of 10.0.0.100-199 and disabled the router’s DHCP.
 
 ## Implementation Process
 
 ### 1. Network Configuration
 
-I configured a static IP using Netplan by editing /etc/netplan/01-netcfg.yaml with the following content: network: version: 2, renderer: networkd, ethernets: eth0: match: macaddress: "2c:cf:67:23:cb:8e", dhcp4: no, addresses: - 192.168.1.200/24, nameservers: addresses: [8.8.8.8, 8.8.4.4], routes: - to: default, via: 192.168.1.254. I cleaned up conflicts by running sudo rm /etc/netplan/50-cloud-init.yaml, sudo chmod 600 /etc/netplan/01-netcfg.yaml, and sudo netplan apply.
+I configured a static IP using Netplan by editing /etc/netplan/01-netcfg.yaml with the following content: network: version: 2, renderer: networkd, ethernets: eth0: match: macaddress: "00:11:22:33:44:55", dhcp4: no, addresses: - 10.0.0.100/24, nameservers: addresses: [8.8.8.8, 8.8.4.4], routes: - to: default, via: 10.0.0.1. I cleaned up conflicts by running sudo rm /etc/netplan/50-cloud-init.yaml, sudo chmod 600 /etc/netplan/01-netcfg.yaml, and sudo netplan apply.
 
 ### 2. Kubernetes Deployment
 
-I defined pihole-deployment.yaml with this configuration: apiVersion: apps/v1, kind: Deployment, metadata: name: pihole, namespace: default, spec: replicas: 1, selector: matchLabels: app: pihole, template: metadata: labels: app: pihole, spec: hostNetwork: true, containers: - name: pihole, image: pihole/pihole:latest, env: - name: ServerIP, value: "192.168.1.200", - name: TZ, value: "America/Chicago", - name: WEBPASSWORD, value: "Coffee10!", - name: DHCP_ROUTER, value: "192.168.1.254", volumeMounts: - name: etc-pihole, mountPath: /etc/pihole, - name: etc-dnsmasq, mountPath: /etc/dnsmasq.d, ports: - containerPort: 53, protocol: UDP, - containerPort: 53, protocol: TCP, - containerPort: 67, protocol: UDP, - containerPort: 80, protocol: TCP, securityContext: capabilities: add: ["NET_ADMIN"], volumes: - name: etc-pihole, hostPath: path: /home/bryan/pihole/etc-pihole, type: Directory, - name: etc-dnsmasq, hostPath: path: /home/bryan/pihole/etc-dnsmasq.d, type: Directory.
+I defined pihole-deployment.yaml with this configuration: apiVersion: apps/v1, kind: Deployment, metadata: name: pihole, namespace: default, spec: replicas: 1, selector: matchLabels: app: pihole, template: metadata: labels: app: pihole, spec: hostNetwork: true, containers: - name: pihole, image: pihole/pihole:latest, env: - name: ServerIP, value: "10.0.0.100", - name: TZ, value: "UTC", - name: WEBPASSWORD, value: "family400@", - name: DHCP_ROUTER, value: "10.0.0.1", volumeMounts: - name: etc-pihole, mountPath: /etc/pihole, - name: etc-dnsmasq, mountPath: /etc/dnsmasq.d, ports: - containerPort: 53, protocol: UDP, - containerPort: 53, protocol: TCP, - containerPort: 67, protocol: UDP, - containerPort: 80, protocol: TCP, securityContext: capabilities: add: ["NET_ADMIN"], volumes: - name: etc-pihole, hostPath: path: /home/user/pihole/etc-pihole, type: Directory, - name: etc-dnsmasq, hostPath: path: /home/user/pihole/etc-dnsmasq.d, type: Directory.
 
 ### 3. System Monitoring & Optimization
 
@@ -60,13 +60,13 @@ I verified system health with sudo systemctl status docker, which showed "Active
 
 ### 1. DNS Timeouts
 
-**Challenge**: nslookup google.com 192.168.1.200 timed out initially.  
-**Solution**: I added hostNetwork: true to the YAML, restarted the pod, and verified DNS with nslookup google.com 192.168.1.200, which resolved to 142.251.35.238.
+**Challenge**: nslookup google.com 10.0.0.100 timed out initially.  
+**Solution**: I added hostNetwork: true to the YAML, restarted the pod, and verified DNS with nslookup google.com 10.0.0.100, which resolved to 142.251.35.238.
 
 ### 2. DHCP Handoff Conflicts
 
 **Challenge**: Network outage occurred when disabling router DHCP first.  
-**Solution**: I enabled Pi-hole DHCP first with a range of 192.168.1.100-199, then disabled router DHCP, and confirmed leases in the dashboard.
+**Solution**: I enabled Pi-hole DHCP first with a range of 10.0.0.100-199, then disabled router DHCP, and confirmed leases in the dashboard.
 
 ### 3. NET_ADMIN Capability Error
 
@@ -80,7 +80,7 @@ I verified system health with sudo systemctl status docker, which showed "Active
 
 ## Performance Verification
 
-I confirmed functionality through tests: I ran nslookup doubleclick.net 192.168.1.200, which returned 0.0.0.0 to confirm blocking, nslookup x.com 192.168.1.200, which resolved to 172.66.0.227, and a resilience test with microk8s kubectl delete pod -l app=pihole followed by microk8s kubectl get pods, showing a new pod running within 30 seconds. I also verified DHCP leases at http://192.168.1.200/admin.
+I confirmed functionality through tests: I ran nslookup doubleclick.net 10.0.0.100, which returned 0.0.0.0 to confirm blocking, nslookup x.com 10.0.0.100, which resolved to 172.66.0.227, and a resilience test with microk8s kubectl delete pod -l app=pihole followed by microk8s kubectl get pods, showing a new pod running within 30 seconds. I also verified DHCP leases at http://10.0.0.100/admin.
 
 ## Key Achievements
 
