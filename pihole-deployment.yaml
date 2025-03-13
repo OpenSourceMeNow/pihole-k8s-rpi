@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pihole
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pihole
+  template:
+    metadata:
+      labels:
+        app: pihole
+    spec:
+      hostNetwork: true
+      containers:
+      - name: pihole
+        image: pihole/pihole:latest
+        env:
+        - name: ServerIP
+          value: "192.168.1.200"
+        - name: TZ
+          value: "America/Chicago"
+        - name: WEBPASSWORD
+          value: "Coffee10!"
+        - name: DHCP_ROUTER
+          value: "192.168.1.254"
+        volumeMounts:
+        - name: etc-pihole
+          mountPath: /etc/pihole
+        - name: etc-dnsmasq
+          mountPath: /etc/dnsmasq.d
+        ports:
+        - containerPort: 53
+          protocol: UDP
+        - containerPort: 53
+          protocol: TCP
+        - containerPort: 67
+          protocol: UDP
+        - containerPort: 80
+          protocol: TCP
+        securityContext:
+          capabilities:
+            add: ["NET_ADMIN"]
+      volumes:
+      - name: etc-pihole
+        hostPath:
+          path: /home/bryan/pihole/etc-pihole
+          type: Directory
+      - name: etc-dnsmasq
+        hostPath:
+          path: /home/bryan/pihole/etc-dnsmasq.d
+          type: Directory
