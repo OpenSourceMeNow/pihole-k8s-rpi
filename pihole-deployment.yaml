@@ -19,13 +19,13 @@ spec:
         image: pihole/pihole:latest
         env:
         - name: ServerIP
-          value: "192.168.1.200"
+          value: "10.0.0.100"
         - name: TZ
-          value: "America/Chicago"
+          value: "UTC"
         - name: WEBPASSWORD
-          value: "Coffee10!"
+          value: "family400@"
         - name: DHCP_ROUTER
-          value: "192.168.1.254"
+          value: "10.0.0.1"
         volumeMounts:
         - name: etc-pihole
           mountPath: /etc/pihole
