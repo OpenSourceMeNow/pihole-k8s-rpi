@@ -8,7 +8,7 @@ This repository documents my deployment of Pi-hole within a Kubernetes (MicroK8s
 
 ## System Specifications
 
-![Raspberry Pi 5 Hardware](images/physical-pi5.png)  
+![Raspberry Pi 5 Hardware](images/kubepi5physical.JPG)  
 *My Raspberry Pi 5 setup*
 
 - **Hardware**: Raspberry Pi 5 (8GB RAM)  
@@ -32,7 +32,7 @@ I enabled DNS and storage in MicroK8s with microk8s enable dns hostpath-storage,
 
 I stopped the native Pi-hole service with sudo systemctl stop pihole-FTL, created persistent directories with mkdir -p /home/bryan/pihole/etc-pihole /home/bryan/pihole/etc-dnsmasq.d, and set permissions with chmod -R 755 /home/bryan/pihole. Then, I applied the Kubernetes deployment with microk8s kubectl apply -f pihole-deployment.yaml.
 
-![Pi-hole Dashboard](images/pihole-dashboard.png)  
+![Pi-hole Dashboard](images/kubepiholedash.png)  
 *Pi-hole admin interface showing statistics and status*
 
 ### 4. Post-Deployment
@@ -53,7 +53,7 @@ I defined pihole-deployment.yaml with this configuration: apiVersion: apps/v1, k
 
 I verified system health with sudo systemctl status docker, which showed "Active: active (running)", microk8s status, which confirmed "microk8s is running", and microk8s kubectl logs -l app=pihole, which logged FTL binding to ports 53, 80, and 443.
 
-![System Health Statistics](images/system-data.png)  
+![System Health Statistics](images/getpods.png)  
 *Terminal output showing pod status and logs*
 
 ## Troubleshooting Challenges & Solutions
